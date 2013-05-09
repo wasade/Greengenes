@@ -37,7 +37,8 @@ script_info['required_options'] = [\
             help="File containing previously observed accessions in the first column")]
 script_info['optional_options'] = [\
         make_option('--max-failures',type='int', default=10000,
-            help='Maximum parse errors per genbank file')]      
+            help='Maximum parse errors per genbank file'),
+        make_option('--allow-noseq-gbrecs',action='store_true',default=False)]      
 script_info['version'] = __version__
 
 def main():
@@ -117,7 +118,11 @@ def main():
                 # this isn't a failure, so no point in continuing but record
                 # the accession so it isn't hit again
                 write_obs_record(obs_records, accession)
-                continue
+
+                if opts.allow_noseq_gbrecs:
+                    sequence = ""
+                else:
+                    continue
             except:
                 failure_count += 1
                 continue
@@ -127,12 +132,15 @@ def main():
             # Thanks NCBI.
             seq_chars = set(sequence)
             if not seq_chars.issubset(alpha):
-                logline = log_f("Corrupt sequence, accession: %s" % (accession))
-                logger.write(logline)
-                if verbose:
-                    stdout.write(logline)
-                failure_count += 1
-                continue
+                if opts.allow_noseq_gbrecs and not sequence:
+                    pass
+                else:
+                    logline = log_f("Corrupt sequence, accession: %s" % (accession))
+                    logger.write(logline)
+                    if verbose:
+                        stdout.write(logline)
+                    failure_count += 1
+                    continue
 
             # gg_record contains gb summary data  
             try:
@@ -142,7 +150,8 @@ def main():
                 continue
 
             seen.add(accession)
-            write_sequence(sequences, accession, sequence)
+            if sequence:
+                write_sequence(sequences, accession, sequence)
             write_gg_record(gg_records, gg_record)
             write_obs_record(obs_records, accession)
             
