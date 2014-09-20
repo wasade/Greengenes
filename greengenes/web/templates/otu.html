@@ -1,0 +1,45 @@
+{% extends auth_sitebase.html %}
+{% block content %}
+
+{% if otu %}
+    <p>Representative ID: {{ otu['rep_id'] }}</p>
+    <p>Size: {{ len(otu['member_id']) }}</p>
+    <a href="/otu_summary/{{ otu['cluster_id'] }}">Summary of cluster taxonomy</a>
+    <table class="table list" border=1 width=100%>
+    <tr>
+        <td>GGID (decision)</td>
+        <td>Database</td>
+        <td>Taxonomy</td>
+    </tr>
+    {% for ggid, dec, ncbitax, silvatax, ggtax in zip(otu['member_id'], 
+                                                      otu['decision'],
+                                                      otu['ncbi_tax'],
+                                                      otu['silva_tax'],
+                                                      otu['gg_tax']) %}
+                                                 
+        <tr>
+            <td><a href="/query/{{ ggid }}">{{ ggid }}</a> ({{ dec }})</td>
+        </tr>
+
+        <tr>
+            <td></td>
+            <td>Greengenes</td>
+            <td>{{ ggtax }}</td>
+        </tr>
+
+        <tr>
+            <td></td>
+            <td>SILVA</td>
+            <td>{{ silvatax }}</td>
+        </tr>
+
+        <tr>
+            <td></td>
+            <td>NCBI</td>
+            <td>{{ ncbitax }}</td>
+        </tr>
+
+    {% end %}
+    </table>
+{% end %}
+{% end %}

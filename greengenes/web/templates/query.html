@@ -1,0 +1,39 @@
+{% extends auth_sitebase.html %}
+{% block content %}
+
+<form id="query_form" name="query_form" method="post" action="/query/">
+    {% raw form.QueryID %}
+    {% raw form.QuerySubmit %}
+</form>
+
+{% if otu_details %}
+    <table class="table list" border=1>
+    <tr>
+        <td>Representative ID</td>
+        <td>Full details</td>
+        <td>Summary</td>
+        <td>Similarity</td>
+        <td>Method</td>
+    </tr>
+    {% for ggid, cid, sim, met in otu_details %}
+        <tr>
+            <td><a href="/query/{{ ggid }}">{{ ggid }}</a></td>
+            <td><a href="/otu/{{ cid }}">Full details</a></td>
+            <td><a href="/otu_summary/{{ cid }}">Summary</a></td>
+            <td>{{ sim }}</td>
+            <td>{{ met }}</td>
+        </tr>
+    {% end %}
+    </table>
+{% end %}
+{% if msg %}
+    <table class="table list" border=1>
+        {% for field, value in msg %}
+            <tr>
+                <td>{{ field }}</td>
+                <td>{% raw value %}</td>
+            </tr>
+        {% end %}
+    </table>
+{% end %}
+{% end %}

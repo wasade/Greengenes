@@ -1,0 +1,19 @@
+{% extends auth_sitebase.html %}
+{% block content %}
+
+<p align='left'>{{ job_id }} : <span id='{{ job_id }}'>DONE!</span></p>
+
+<table class='table list'>
+    {% for m in msg %}
+    <tr>
+        <td>
+        {% if m.startswith('\t') %}
+            <td><p>{{ m }}</p></td>
+        {% else %}
+            <p>{{ m }}</p>
+        {% end %}
+        </td>
+    </tr>
+{% end %}
+</table>
+{% end %}

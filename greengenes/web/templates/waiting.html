@@ -1,0 +1,38 @@
+{% extends auth_sitebase.html %}
+
+<!-- adapted from the qiita project -->
+{% block head %}
+<script type="text/javascript">
+    window.onload = function() {
+        var host = 'ws://' + window.location.host + '/consumer/';
+        var websocket = new WebSocket(host);
+        noerror = true;
+
+        websocket.onopen = function() {
+            websocket.send(JSON.stringify({'user': '{{ user }}'}));
+        };
+        websocket.onmessage = function(evt) {
+            message = JSON.parse(evt.data);
+            if(message.job_id == '{{ job_id }}') {
+                if(message.msg == 'completed') {
+                    window.location.replace("/waiting_redirect/{{ job_id }}");
+                }
+
+                list = document.getElementById(message.job_id);
+                if(message.msg.indexOf("ERROR") != -1) {
+                  noerror=false;
+                }
+                else {
+                }
+                list.innerHTML = message.msg;
+            }
+        };
+        websocket.onerror = function(evt) { };
+};
+
+</script>
+{% end %}
+
+{% block content %}
+<p align='left'>{{ job_id }} : <span id='{{ job_id }}'>Queued</span></p>
+{% end %}

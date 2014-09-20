@@ -1,0 +1,34 @@
+{% extends auth_sitebase.html %}
+{% block content %}
+
+<p>Representative ID: {{ rep_id }}</p>
+<p>Size: {{ size }}</p>
+<table class="table list" border=1 width=100%>
+<tr>
+    <td>Database</td>
+    <td>Count</td>
+    <td>Taxonomy</td>
+</tr>
+{% for taxa, count in gg_summary %}
+    <tr>
+        <td>Greengenes</td>
+        <td>{{ count }}
+        <td>{{ taxa }}</td>
+    </tr>
+{% end %}
+{% for taxa, count in ncbi_summary %}
+    <tr>
+        <td>NCBI</td>
+        <td>{{ count }}
+        <td>{{ taxa }}</td>
+    </tr>
+{% end %}
+{% for taxa, count in silva_summary %}
+    <tr>
+        <td>SILVA</td>
+        <td>{{ count }}
+        <td>{{ taxa }}</td>
+    </tr>
+{% end %}
+</table>
+{% end %}

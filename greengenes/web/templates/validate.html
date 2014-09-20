@@ -1,0 +1,8 @@
+{% extends auth_sitebase.html %}
+
+{% block content %}
+<form id="upload" name="upload" method="post" action="/validate/" enctype="multipart/form-data">
+    <input type="file" name="tree_file" value=""/>
+    <input type="submit", value="Upload tree"/>
+</form>
+{% end %}
