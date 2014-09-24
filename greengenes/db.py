@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from collections import defaultdict
 from contextlib import contextmanager
 from psycopg2 import connect, ProgrammingError, OperationalError
 from gzip import open as gzopen
@@ -38,8 +39,8 @@ SINGLE_RECORD = "SELECT gg_id,ncbi_acc_w_ver,ncbi_gi,db_name,gold_id,"\
                 "gg.tax_string AS greengenes_tax_string,"\
                 "h.tax_string AS hugenholtz_tax_id,non_acgt_percent,"\
                 "perc_ident_to_invariant_core,ssu.sequence AS ssualign_seq,"\
-                "pynast.sequence AS pynast_seq,"\
-                "unaligned.sequence AS unaligned_seq "\
+                "pn.sequence AS pynast_seq,"\
+                "ua.sequence AS unaligned_seq "\
                 "FROM record g "\
                 "LEFT JOIN taxonomy st ON st.tax_id=g.silva_tax_id "\
                 "LEFT JOIN taxonomy nt ON nt.tax_id=g.ncbi_tax_id "\
@@ -92,6 +93,32 @@ _sql_insert_otu_cluster = """
                VALUES (%d, %d, %d, %f, '%s')"""
 _sql_insert_otu = """INSERT INTO otu(cluster_id, gg_id)
                      VALUES (%d, %d)"""
+_sql_get_otu_cluster = """SELECT o.gg_id, similarity, method
+                          FROM otu_cluster oc
+                            JOIN otu o ON oc.cluster_id=o.cluster_id
+                            JOIN gg_release gr ON oc.rel_id=gr.rel_id
+                          WHERE gr.name='%s' AND oc.rep_id=%d"""
+_sql_get_otu_cluster_by_cid = """SELECT o.gg_id
+                                 FROM otu_cluster oc
+                                   JOIN otu o ON oc.cluster_id=o.cluster_id
+                                   JOIN gg_release gr ON oc.rel_id=gr.rel_id
+                                 WHERE oc.cluster_id=%d"""
+_sql_get_otu_reps = """SELECT oc.rep_id
+                       FROM otu_cluster oc
+                         JOIN gg_release gr on oc.rel_id=gr.rel_id
+                       WHERE oc.similarity='%s'
+                         AND oc.method='%s'
+                         AND gr.name='%s'"""
+_sql_get_otu_clusters = """SELECT cluster_id, similarity, method, r.name
+                           FROM otu_cluster oc
+                             JOIN gg_release r ON oc.rel_id=r.rel_id
+                           WHERE oc.rep_id=%d"""
+_sql_get_decision = """SELECT gg_id, decision
+                       FROM record
+                       WHERE gg_id IN (%s)"""
+_sql_get_otu_cluster_rep = """SELECT rep_id
+                              FROM otu_cluster
+                              WHERE cluster_id=%d"""
 _sql_create_tmp = "CREATE TEMPORARY TABLE %s LIKE %s"""
 _sql_drop = "DROP TABLE %s"
 _sql_insert_rec = "INSERT INTO record (%s) VALUES (%s)"
@@ -102,9 +129,9 @@ _sql_select_relid = """SELECT rel_id
                        WHERE gg_id=%d AND name='%s'"""
 _sql_set_search_path = "SET search_path TO %s"
 
-_sql_record_exists_ncbi =  """SELECT ncbi_acc_w_ver
-                              FROM record
-                              WHERE ncbi_acc_w_ver='%s'"""
+_sql_record_exists_ncbi = """SELECT ncbi_acc_w_ver
+                             FROM record
+                             WHERE ncbi_acc_w_ver='%s'"""
 _sql_record_exists_ggid = "SELECT gg_id FROM record WHERE gg_id=%d"
 
 _sql_select_multiple_tax = """SELECT g.gg_id, t.tax_string
@@ -118,9 +145,39 @@ _sql_select_single_tax = """SELECT t.tax_string
                             WHERE g.gg_id=%d"""
 _sql_select_max = "SELECT MAX(%s) FROM %s"
 
+_sql_get_user = "SELECT password FROM web_users where web_user='%s'"
+
+
+def parse_silva(db, lines):
+    """Parse the silva, return the {id_: tax}"""
+    cursor = db.con.cursor()
+    cursor.execute("""SELECT gg_id, ncbi_acc_w_ver, t.tax_string
+                      FROM record r
+                        LEFT JOIN taxonomy t ON r.silva_tax_id=t.tax_id""")
+
+    raw_mapping = cursor.fetchall()
+    mapping = defaultdict(list)
+    current_tax = {}
+    for gg_id, acc, tax in raw_mapping:
+        unversioned = acc.split('.')[0]
+        mapping[unversioned].append(gg_id)
+        current_tax[gg_id] = tax
+
+    tax_map = {}
+    for line in lines:
+        acc, start, stop, tax = line.strip().split('\t', 3)
+        ggids = mapping.get(acc, [])
+
+        for ggid in ggids:
+            if current_tax[ggid] != tax:
+                tax_map[ggid] = tax
+
+    return tax_map
+
+
 class GreengenesDB(object):
     def __init__(self, host='localhost', user='ggadmin', passwd='',
-                 debug=False, database='greengenes'):
+                 debug=False, database='greengenes', config=None):
         self.con = connect(host=host, user=user, password=passwd,
                            database=database)
 
@@ -130,6 +187,8 @@ class GreengenesDB(object):
             self._populate_debug_db()
         else:
             self._set_production_schema()
+
+        self.config = config
 
     def __del__(self):
         self.con.close()
@@ -142,6 +201,20 @@ class GreengenesDB(object):
     def _set_production_schema(self):
         """Set production schema"""
         self._execute(_sql_set_search_path % "production")
+
+    def authenticate_user(self, user, password):
+        """Authenticate a user"""
+        if self.config is None:
+            raise ValueError("Missing config!")
+
+        import bcrypt
+
+        observed = bcrypt.hashpw(password.encode('ascii'), self.config.db_salt)
+        with self._execute_and_more(_sql_get_user % user.encode('ascii')) as cur:
+            result = cur.fetchone()
+            if result is not None and observed == result[0]:
+                return True
+        return False
 
     def to_arb(self, ids, aln_seq_field, directio_basename=None, size=10000):
         """Fetch ARB records
@@ -202,6 +275,10 @@ class GreengenesDB(object):
         """Update NCBI taxonomy fields"""
         self._update_tax('ncbi_tax_id', tax_map, version)
 
+    def update_silva_tax(self, tax_map, version):
+        """Update SILVA taxonomy fields"""
+        self._update_tax('silva_tax_id', tax_map, version)
+
     def _update_tax(self, col, taxmap, version):
         """Insert taxonomy records, update greengenes records"""
         tax_id = self._get_max_taxid() + 1
@@ -230,6 +307,193 @@ class GreengenesDB(object):
         """Query multiple GGIDs at a time"""
         return self._get_multiple_tax('greengenes_tax_id', ggids)
 
+    def get_silva_tax_multiple(self, ggids):
+        """Query multiple GGIDs at a time"""
+        return self._get_multiple_tax('silva_tax_id', ggids)
+
+    def get_otu_cluster_detail(self, cluster_id):
+        """Get detail for the cluster
+
+        Parameters
+        ----------
+        cluster_id : int
+            The OTU cluster to get
+
+        Raises
+        ------
+        ValueError
+            If the cluster_id is not known
+
+        Returns
+        -------
+        dict
+            Detail about the OTU cluster with the expected key/values:
+
+            rep_id : int
+                The representative GG ID for the cluster
+            cluster_id : int
+                The cluster ID
+            member_id : list of int
+                The members of the cluster
+            ncbi_tax : list of str
+                The NCBI taxonomy of each member in index order with member_id
+            gg_tax : list of str
+                The GG taxonomy of each member in index order with member_id
+            silva_tax : list of str
+                The SILVA taxonomy of each member in index order with member_id
+            decision : list of str
+                The 'decision' of each member in the cluster
+        """
+        detail = {'rep_id': None,
+                  'cluster_id': cluster_id,
+                  'member_id': [],
+                  'ncbi_tax': [],
+                  'silva_tax': [],
+                  'gg_tax': [],
+                  'decision': []}
+
+        sql = _sql_get_otu_cluster_rep % cluster_id
+        with self._execute_and_more(sql) as cur:
+            detail['rep_id'] = cur.fetchone()[0]
+
+        sql = _sql_get_otu_cluster_by_cid % cluster_id
+        with self._execute_and_more(sql) as cur:
+            ids = [i[0] for i in cur.fetchall()]
+
+        ncbi_tax = self.get_ncbi_tax_multiple(ids)
+        gg_tax = self.get_greengenes_tax_multiple(ids)
+        silva_tax = self.get_silva_tax_multiple(ids)
+        decisions = self.get_decision(ids)
+
+        for i in ids:
+            detail['member_id'].append(i)
+            detail['ncbi_tax'].append(ncbi_tax[i])
+            detail['gg_tax'].append(gg_tax[i])
+            detail['silva_tax'].append(silva_tax[i])
+            detail['decision'].append(decisions[i])
+
+        return detail
+
+    def get_decision(self, id_):
+        """Get the decision for the ID (e.g., clone, named_isolate, etc)
+
+        Parameters
+        ----------
+        id_ : int or list of int
+            The ID to query
+
+        Returns
+        -------
+        str or dict
+            The decision, `dict` if input is `list` where key is gg_id, value
+            is str.
+        """
+        if isinstance(id_, list):
+            id_ = ','.join((str(i) for i in id_))
+            formatter = lambda x: dict(x)
+        else:
+            id_ = str(id_)
+            formatter = lambda x: x[0][1]
+
+        with self._execute_and_more(_sql_get_decision % id_) as cur:
+            decision = formatter(cur.fetchall())
+
+        return decision
+
+    def get_otu_reps(self, similarity, method, rel):
+        """Get the representative members for a set of OTUs
+
+        Parameters
+        ----------
+        similarity : float
+            The level of similarity to select against.
+        method : str
+            The method to select against.
+        rel : str
+            The release to select against.
+
+        Returns
+        -------
+        set
+            The associated GGIDs
+        """
+        fmt = (similarity, method, rel)
+        with self._execute_and_more(_sql_get_otu_reps % fmt) as cur:
+            return set((i[0] for i in cur.fetchall()))
+
+    def get_otu_membership(self, ggid, rel):
+        """Get the reps and cluster IDs that a GGID is in
+
+        Parameters
+        ----------
+        ggid : int
+            The ggid
+        rel : str
+            The release name
+
+        Returns
+        -------
+        list of tuple
+            list of (rep_id, cluster_id, similarity, method)
+        """
+        _sql_get_otu_membership = """SELECT cluster_id
+                                     FROM otu
+                                     WHERE gg_id=%d"""
+        _sql_get_otu_reps = """SELECT rep_id, cluster_id, similarity, method
+                               FROM otu_cluster oc
+                                 JOIN gg_release r on oc.rel_id=r.rel_id
+                               WHERE r.name='%s' AND cluster_id IN (%s)"""
+
+        with self._execute_and_more(_sql_get_otu_membership % ggid) as cur:
+            cids = ','.join((str(i[0]) for i in cur.fetchall()))
+
+        with self._execute_and_more(_sql_get_otu_reps % (rel, cids)) as cur:
+            result = [i for i in cur.fetchall()]
+
+        return result
+
+    def get_otu_cluster(self, ggid, rel, similarity=None, method=None):
+        """Get an OTU cluster
+
+        Parameters
+        ----------
+        ggid : int
+            A representative ggid to search for
+        rel : str
+            The release name
+
+        Returns
+        -------
+        list of float
+            The cluster similarity
+        list of method
+            The method used
+        list of int
+            The associated cluster members (includes the representative)
+        """
+        sql = _sql_get_otu_cluster % (rel, ggid)
+        if similarity is not None:
+            sql += " AND oc.similarity='%s'" % similarity
+        if method is not None:
+            sql += " AND oc.method='%s'" % method
+
+        with self._execute_and_more(sql) as cur:
+            res = cur.fetchall()
+
+        if not res:
+            return None
+
+        members_ = []
+        method_ = []
+        similarity_ = []
+
+        for mem, sim, met in res:
+            similarity_.append(sim)
+            method_.append(met)
+            members_.append(mem)
+
+        return (similarity_, method_, members_)
+
     def _get_multiple_tax(self, field, ggids):
         """Get multiple taxonomy strings by GGIDs"""
         res = {int(i): None for i in ggids}
@@ -240,6 +504,10 @@ class GreengenesDB(object):
             res.update(dict(cur.fetchall()))
 
         return res
+
+    def get_silva_tax(self, ggid):
+        """Get a taxonomy string by GGID"""
+        return self._get_single_tax("silva_tax_id", ggid)
 
     def get_ncbi_tax(self, ggid):
         """Get a taxonomy string by GGID"""
@@ -473,6 +741,7 @@ class GreengenesDB(object):
     def _create_db(self, schema='development'):
         """Create a small test database"""
         cursor = self.con.cursor()
+        cursor.execute("DROP TABLE IF EXISTS %s.web_users" % schema)
         cursor.execute("DROP TABLE IF EXISTS %s.otu" % schema)
         cursor.execute("DROP TABLE IF EXISTS %s.otu_cluster" % schema)
         cursor.execute("DROP TABLE IF EXISTS %s.gg_release" % schema)
@@ -480,6 +749,14 @@ class GreengenesDB(object):
         cursor.execute("DROP TABLE IF EXISTS %s.record" % schema)
         cursor.execute("DROP TABLE IF EXISTS %s.taxonomy" % schema)
         cursor.execute("DROP TABLE IF EXISTS %s.sequence" % schema)
+
+        cursor.execute("""
+            CREATE TABLE %s.web_users(
+            web_user VARCHAR(32) NOT NULL,
+            password VARCHAR(64) NOT NULL,
+            PRIMARY KEY(web_user)
+            )""" % schema)
+        self.con.commit()
 
         cursor.execute("""
             CREATE TABLE %s.taxonomy(
@@ -585,6 +862,11 @@ class GreengenesDB(object):
     def _populate_debug_db(self):
         """Source a subset from production db"""
         cursor = self.con.cursor()
+        cursor.execute("""INSERT INTO development.web_users
+                          (web_user, password)
+                          VALUES ('test',
+          '$2a$12$3CSWfD9D0u4cvGMcqtIV1.C2U4XOkNdM9qeVnHYl4/2/u/04qRJrm')""")
+
         cursor.execute("""INSERT INTO development.sequence
                           SELECT s.seq_id,s.sequence
                           FROM production.record g
