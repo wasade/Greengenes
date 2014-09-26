@@ -31,9 +31,9 @@ class BaseHandler(RequestHandler):
 class MainHandler(BaseHandler):
     """Index page"""
     def get(self):
-        self.render("index.html", loginerror="")
+        self.render("index.html", loginerror="", user=self.current_user)
 
 
 class NoPageHandler(BaseHandler):
     def get(self):
-        self.render("404.html", loginerror='')
+        self.render("404.html", loginerror='', user=self.current_user)

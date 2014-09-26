@@ -6,4 +6,4 @@ from greengenes.web.handlers.base import BaseHandler
 class PortalHandler(BaseHandler):
     @authenticated
     def get(self):
-        self.render("portal.html", user=self.current_user)
+        self.render("index.html", user=self.current_user)

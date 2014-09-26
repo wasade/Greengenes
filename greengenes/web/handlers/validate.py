@@ -9,11 +9,11 @@ from greengenes.web.handlers.base import BaseHandler
 
 
 class ValidateHandler(BaseHandler):
-    #@authenticated
+    @authenticated
     def get(self):
         self.render("validate.html", user=self.current_user)
 
-    #@authenticated
+    @authenticated
     def post(self):
         data = self.request.files['tree_file'][0]['body']
 
@@ -45,7 +45,7 @@ class ValidateHandler(BaseHandler):
 
 
 class ValidateResultsHandler(BaseHandler):
-    #@authenticated
+    @authenticated
     def get(self, job_id):
         user = self.current_user
 

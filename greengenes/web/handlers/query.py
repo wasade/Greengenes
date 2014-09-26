@@ -42,13 +42,13 @@ def _summarize_cluster(details):
 
 class Query(Form):
     QueryID = TextField('query_id')
-    QuerySubmit = SubmitField('query_submit')
+    QuerySubmit = SubmitField('Submit')
 
 
 class OTUHandler(BaseHandler):
     def get(self, clusterid=None):
         if clusterid is None:
-            self.render("portal.html", user=self.current_user)
+            self.render("index.html", user=self.current_user, loginerror='')
         else:
             details = db.get_otu_cluster_detail(int(clusterid))
             self.render("otu.html", otu=details, user=self.current_user)
@@ -57,7 +57,7 @@ class OTUHandler(BaseHandler):
 class OTUSummaryHandler(BaseHandler):
     def get(self, clusterid=None):
         if clusterid is None:
-            self.render("portal.html", user=self.current_user)
+            self.render("index.html", user=self.current_user, loginerror='')
         else:
             details = db.get_otu_cluster_detail(int(clusterid))
             gg_sum, ncbi_sum, silva_sum = _summarize_cluster(details)
@@ -84,21 +84,27 @@ class QueryHandler(BaseHandler):
         return msg, otu_details
 
     def get(self, queryid=None):
-        if queryid is not None:
-            msg, otu_details = self._process_query(queryid)
-            self.write(dumps(msg))
+        query = Query()
+
+        if queryid is None:
+            queryid = self.get_argument('QueryID', None)
+
+        if queryid is None:
+            self.render("query.html", user=self.current_user, form=query,
+                        msg=[], otu_details=[])
         else:
-            query = Query()
-            msg, otu_details = self._process_query(self.get_argument('QueryID',
-                                                                     queryid))
+            msg, otu_details = self._process_query(queryid)
+
             formatted = _format_record(msg)
             self.render("query.html", user=self.current_user, form=query,
-                        msg=formatted, otu_details=otu_details)
+                        msg=formatted, otu_details=otu_details,
+                        queryid=queryid)
 
     def post(self):
         query = Query()
 
-        msg, otu_details = self._process_query(self.get_argument('QueryID', []))
+        queryid = self.get_argument('QueryID', None)
+        msg, otu_details = self._process_query(queryid)
         formatted = _format_record(msg)
         self.render("query.html", user=self.current_user, msg=formatted,
-                    form=query, otu_details=otu_details)
+                    form=query, otu_details=otu_details, queryid=queryid)

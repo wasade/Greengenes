@@ -17,7 +17,7 @@ class AuthLoginHandler(BaseHandler):
 
         if login:
             self.set_current_user(user)
-            self.redirect("/portal/")
+            self.redirect("/")
         else:
             msg = "Invalid username or password"
             self.render("index.html", user=None, loginerror=msg)
@@ -28,6 +28,8 @@ class AuthLoginHandler(BaseHandler):
         else:
             self.clear_cookie("user")
 
+    def get(self):
+        self.render("index.html", user=None, loginerror='')
 
 class AuthLogoutHandler(BaseHandler):
     """Logout handler, no page necessary"""

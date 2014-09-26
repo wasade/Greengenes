@@ -18,10 +18,15 @@
             <div class="left menuwrapper">
                 <div id="cssmenu">
                     <ul>
-                        <li class="active"><a href="/portal/"<span><strong>Home</strong></span></a></li>
+                        <li class="active"><a href="/"<span><strong>Home</strong></span></a></li>
                         <li><a href="/query/"<span><strong>Query</strong></span></a></li>
-                        <li><a href="/validate/"<span><strong>Validate a tree</strong></span></a></li>
-                        <li class="last"><a href="/auth/logout/"><span><strong>Log out</strong></span></a></li>
+                        {% if user is None %}
+                            <li><a href="/auth/login/"<span><strong>Validate a tree (requires login)</strong></span></a></li>
+                            <li class="last"><a href="/auth/login/"><span><strong>Login</strong></span></a></li>
+                        {% else %}
+                            <li><a href="/validate/"<span><strong>Validate a tree</strong></span></a></li>
+                            <li class="last"><a href="/auth/logout/"><span><strong>Log out</strong></span></a></li>
+                        {% end %}
                     </ul>
                 </div>
             </div>

@@ -1,12 +1,15 @@
-{% extends auth_sitebase.html %}
+{% extends sitebase.html %}
 {% block content %}
 
 <form id="query_form" name="query_form" method="post" action="/query/">
+    <p>Search for a Greengenes ID:</p>
     {% raw form.QueryID %}
     {% raw form.QuerySubmit %}
 </form>
 
 {% if otu_details %}
+    <br>
+    <p>The OTUs associated with record {{ queryid }} are associated with the following OTUs:</p>
     <table class="table list" border=1>
     <tr>
         <td>Representative ID</td>
@@ -27,6 +30,7 @@
     </table>
 {% end %}
 {% if msg %}
+<p>Record details:</p>
     <table class="table list" border=1>
         {% for field, value in msg %}
             <tr>
