@@ -178,17 +178,25 @@ def parse_silva(db, lines):
 class GreengenesDB(object):
     def __init__(self, host='localhost', user='ggadmin', passwd='',
                  debug=False, database='greengenes', config=None):
-        self.con = connect(host=host, user=user, password=passwd,
-                           database=database)
+        self._host = host
+        self._user = user
+        self._passwd = passwd
+        self._database = database
+        self._debug = debug
+        self.config = config
 
-        if debug:
+        self._open_connection()
+
+    def _open_connection(self):
+        self.con = connect(host=self._host, user=self._user,
+                           password=self._passwd, database=self._database)
+
+        if self._debug:
             self._set_development_schema()
             self._create_db()
             self._populate_debug_db()
         else:
             self._set_production_schema()
-
-        self.config = config
 
     def __del__(self):
         self.con.close()
@@ -216,6 +224,25 @@ class GreengenesDB(object):
                 return True
         return False
 
+    def load_taxonomy_tree(self, tree, tree_name):
+        """Load a taxonomy tree
+
+        """
+        # setup tip ranges
+        tree.assign_ids()
+        for node in tree.postorder(include_self=True):
+            if node.is_tip():
+                node.tip_range = (node.id, node.id)
+                # insert into taxonomy_hierarchy (hierarchy_id, gg_id, left_id, right_id) VALUES (node.id, node.name, node.id, node.id)
+            else:
+                node.tip_range = (min([c.tip_range[0] for c in node.children]),
+                                  max([c.tip_range[1] for c in node.children]))
+                # insert into taxonomy_hierarchy (hierarchy_id, name, left_id, right_id) VALUES (node.id, node.name, node.tip_range[0], node.tip_range[1])
+
+
+        # select gg_id from
+            # (select gg_id, left_id, right_id from taxonomy_hierarchy where name=foo)
+        # where left_id <= left_id and right_id <= right_id
     def to_arb(self, ids, aln_seq_field, directio_basename=None, size=10000):
         """Fetch ARB records
 
@@ -632,9 +659,12 @@ class GreengenesDB(object):
     @contextmanager
     def _execute_and_more(self, sql):
         """Execute, rollback if we hit an error, otherwise get a cursor"""
+        if self.con.closed:
+            self._open_connection()
+
         with self.con.cursor() as cursor:
             try:
-                _ = cursor.execute(sql)
+                cursor.execute(sql)
             except ProgrammingError:
                 self.con.rollback()
                 raise ValueError("Unable to execute:\n%s!" % sql)
