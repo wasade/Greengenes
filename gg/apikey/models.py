@@ -10,14 +10,8 @@
     gg.apikey.models
     ~~~~~~~~~~~~~~~~~~~~~
     APIKey models
-
-    derived from overholt
-    https://github.com/mattupstate/overholt
 """
-
 from uuid import uuid4
-
-from flask_security import UserMixin, RoleMixin
 
 from ..core import db, CommonMixin
 
