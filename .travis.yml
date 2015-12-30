@@ -8,9 +8,9 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda3/bin:$PATH
 install:
-  - conda create --yes -n env_name python=$PYTHON_VERSION --file conda_requirements.txt
+  - conda create --yes -n env_name python=$PYTHON_VERSION --file conda-requirements.txt
   - source activate env_name
-  - pip install -r pip_requirements.txt
+  - pip install -r pip-requirements.txt
   - pip install -e . --no-deps
 script:
   - nosetests 
