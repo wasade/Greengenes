@@ -16,8 +16,9 @@
 """
 
 from .users import UsersService
-
 from .apikey import APIKeyService
+from .record import RecordService
 
 users = UsersService()
 apikey = APIKeyService()
+record = RecordService()

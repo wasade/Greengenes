@@ -15,6 +15,8 @@
     https://github.com/mattupstate/overholt
 """
 
+from flask.json import loads
+
 from . import GGApiTestCase
 
 
@@ -23,7 +25,9 @@ class UserApiTestCase(GGApiTestCase):
     def test_get_current_user(self):
         r = self.jget('/users')
         self.assertOkJson(r)
+        self.assertIn(self.user.id, loads(r.data)['data'])
 
     def test_get_user(self):
         r = self.jget('/users/%s' % self.user.id)
         self.assertOkJson(r)
+        self.assertEqual(loads(r.data)['data']['email'], self.user.email)

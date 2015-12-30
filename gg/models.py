@@ -8,3 +8,4 @@
 
 from .users.models import *
 from .apikey.models import *
+from .record.models import *

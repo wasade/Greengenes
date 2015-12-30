@@ -18,6 +18,7 @@
 from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import Security
+from sqlalchemy.sql import func
 
 #: Flask-SQLAlchemy extension instance
 db = SQLAlchemy()
@@ -30,7 +31,7 @@ security = Security()
 
 class CommonMixin():
     id = db.Column(db.Integer, primary_key=True)
-    creation = db.Column(db.DateTime())#, server_default=db.text('NOW()'))
+    creation = db.Column(db.DateTime(), default=func.now())
 
 
 class GGError(Exception):

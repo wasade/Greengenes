@@ -21,9 +21,9 @@ from flask import jsonify, request, abort
 from flask_security import login_required
 
 from ..core import GGError, GGFormError
-from ..services import apikey
 from ..helpers import JSONEncoder
 from .. import factory
+from ..services import apikey
 
 
 def create_app(settings_override=None, reg_sec_blueprint=False):
@@ -51,10 +51,10 @@ def get_apikey_object_by_key(key):
 
     adapted from: http://stackoverflow.com/a/24705557
     """
-    return apikey.query.filter_by(key=key).first()
+    return apikey.find(key=key, active=True).first()
 
 
-def _match_api_key(key, ip):
+def match_api_key(key, ip):
     """
     Match API keys and discard ip
     @param key: API key from request
@@ -76,6 +76,7 @@ def _match_api_key(key, ip):
 
     return False
 
+
 # The actual decorator function
 def require_appkey(f):
     # adapted from
@@ -85,7 +86,7 @@ def require_appkey(f):
     @wraps(f)
     # the new, post-decoration function. Note *args and **kwargs here.
     def decorated_function(*args, **kwargs):
-        if _match_api_key(request.args.get('key'), request.remote_addr):
+        if match_api_key(request.args.get('key'), request.remote_addr):
             return f(*args, **kwargs)
         else:
             abort(401)

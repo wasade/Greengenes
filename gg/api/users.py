@@ -34,5 +34,4 @@ def whoami():
 @route(bp, '/<user_id>')
 def show(user_id):
     """Returns a user instance."""
-    print(users.get_or_404(user_id))
     return users.get_or_404(user_id)

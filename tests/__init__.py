@@ -46,7 +46,6 @@ class GGAppTestCase(FlaskTestCaseMixin, GGTestCase):
         from gg.services import users
 
         self._create_fixtures()
-        print(users.all())
         self._create_csrf_token()
 
     def tearDown(self):

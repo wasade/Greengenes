@@ -17,7 +17,7 @@
 
 from datetime import datetime
 
-from factory import Sequence, LazyAttribute, SubFactory
+from factory import Sequence, LazyAttribute, SubFactory, Iterator
 from factory.alchemy import SQLAlchemyModelFactory
 from flask_security.utils import encrypt_password
 
@@ -39,3 +39,15 @@ class UserFactory(SQLAlchemyModelFactory):
     current_login_ip = '127.0.0.1'
     login_count = 1
     active = True
+
+
+class APIKeyFactory(SQLAlchemyModelFactory):
+    class Meta:
+        model = APIKey
+        sqlalchemy_session = db.session
+
+    active = False
+    key = Sequence(lambda n: 'abcdefg{0}'.format(n))
+    ip = '0.0.0.0'
+    use_count = 0
+    user = SubFactory(UserFactory)
