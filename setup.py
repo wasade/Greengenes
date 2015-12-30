@@ -1,5 +1,11 @@
-import re
-import ast
+# -*- coding: utf-8 -*-
+#-----------------------------------------------------------------------------
+# Copyright (c) 2011--, The Greengenes Development Team.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
 from glob import glob
 
 from setuptools import find_packages, setup
@@ -17,7 +23,7 @@ classes = """
 classifiers = [s.strip() for s in classes.split('\n') if s]
 
 setup(name='greengenes',
-      version=version,
+      version='0.1-dev',
       description="Greengenes",
       long_description="The Greengenes Reference Database and Taxonomy",
       author="Greengenes development team",
